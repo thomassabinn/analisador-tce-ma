@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Analisador de Relatórios TCE/MA - Pré Backend",
+  "description": "Uma aplicação para analisar relatórios em PDF do Tribunal de Contas do Estado do Maranhão (TCE/MA), identificar itens 'não atendidos' e gerar um relatório de defesa consolidado em formato JSON, utilizando a API do Gemini.",
+  "requestFramePermissions": []
+}
