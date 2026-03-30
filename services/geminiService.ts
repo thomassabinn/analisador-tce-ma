@@ -102,7 +102,11 @@ const getPrompt = () => {
 };
 
 export const analyzeTcePdf = async (pdfBase64: string, mimeType: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("A chave da API Gemini não está configurada. Defina GEMINI_API_KEY nas variáveis de ambiente do Vercel e faça o redeploy.");
+    }
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             // FIX: Updated model from deprecated `gemini-pro` to `gemini-2.5-pro`.
