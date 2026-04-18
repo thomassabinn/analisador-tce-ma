@@ -16,8 +16,9 @@ import FeedbackButton from './components/FeedbackButton';
 import FeedbackModal from './components/FeedbackModal';
 import { XIcon } from './components/icons';
 
-import { analyzeTcePdf } from './services/geminiService';
+import { analyzeTcePdf } from './services/analysisApi';
 import { fileToBase64, base64ToFile, generateDocxBlob } from './utils/fileUtils';
+import { getAnalysisSessionPlan } from './utils/analysisSession';
 import { TOPIC_CLASSIFICATIONS } from './topicClassifications';
 import type {
   GroupedAnalysisResultTopic,
@@ -202,7 +203,7 @@ const App: React.FC = () => {
 
   const handleSaveSession = useCallback(async (name: string, options: { silent?: boolean } = {}) => {
     const newSessionId = await saveSessionToDb({
-      id: currentSessionId,
+        id: sessionPlan.sessionIdToSave,
       name,
       fileName: selectedFile?.name ?? null,
       appState: { analysisResults, validationText, entityLogo, originalScores }
@@ -390,6 +391,7 @@ const App: React.FC = () => {
 
   const processFileFromQueue = async (file: File) => {
     setIsProcessingQueue(true);
+    const previousSessionId = currentSessionId;
 
     if (analysisResults.length === 0) {
       clearState();
@@ -404,6 +406,11 @@ const App: React.FC = () => {
 
     // Criar uma sessão temporária para rastrear a análise em andamento
     const tempSessionId = uuidv4();
+    const sessionPlan = getAnalysisSessionPlan({
+      previousSessionId,
+      tempSessionId,
+      queueLength: analysisQueue.length,
+    });
     const tempSessionName = `Análise: ${file.name}`;
     await saveSessionToDb({
       id: tempSessionId,
@@ -477,7 +484,7 @@ const App: React.FC = () => {
 
       // Atualizar a sessão temporária com os resultados ou criar nova se necessário
       const finalSessionId = await saveSessionToDb({
-        id: currentSessionId, // Usar a sessão temporária se existir
+        id: sessionPlan.sessionIdToSave,
         name: sessionName,
         fileName: file.name,
         appState: {
@@ -491,7 +498,7 @@ const App: React.FC = () => {
       setCurrentSessionId(finalSessionId);
       localStorage.setItem('lastActiveSessionId', finalSessionId);
 
-      if (analysisQueue.length === 1 || currentSessionId === null) {
+      if (sessionPlan.shouldLoadSession) {
         await handleLoadSession(finalSessionId);
       }
 
