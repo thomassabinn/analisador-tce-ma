@@ -36,6 +36,15 @@ describe('analysisApi', () => {
     );
   });
 
+  it('surfaces an actionable message when the upload route cannot generate a Blob client token', async () => {
+    const file = new File(['fake-pdf'], 'relatorio.pdf', { type: 'application/pdf' });
+    vi.mocked(upload).mockRejectedValue(new Error('Failed to retrieve the client token'));
+
+    await expect(uploadPdfForAnalysis(file)).rejects.toThrow(
+      'Falha ao iniciar o upload do PDF. Verifique se BLOB_READ_WRITE_TOKEN está configurado na Vercel e se a rota /api/upload está funcionando.'
+    );
+  });
+
   it('posts the uploaded blob URL to the backend endpoint and returns the response body', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

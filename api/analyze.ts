@@ -1,4 +1,4 @@
-import { handleAnalyzeRequest } from '../server/analyzeHandler';
+import { handleAnalyzeRequest } from '../server/analyzeHandler.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

@@ -1,4 +1,4 @@
-import { handleUploadRequest } from '../server/uploadHandler';
+import { handleUploadRequest } from '../server/uploadHandler.js';
 
 export default async function handler(req: any, res: any) {
   try {

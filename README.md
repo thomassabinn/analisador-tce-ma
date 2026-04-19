@@ -15,6 +15,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1I3EHQRK4OofMY8LuI5dlJu
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local). The key is consumed only by the server-side analysis endpoint.
-3. Run the app:
+2. Set the server-side environment variables in `.env.local`:
+   `GEMINI_API_KEY=your_gemini_key`
+   `BLOB_READ_WRITE_TOKEN=your_vercel_blob_read_write_token`
+3. In Vercel, add these same variables to the project environments before testing uploads in Preview or Production.
+4. Run the app:
    `npm run dev`

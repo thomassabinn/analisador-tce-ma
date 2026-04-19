@@ -1,4 +1,4 @@
-import { analyzeTcePdfFromBlobUrl, analyzeTcePdfServer } from './geminiAnalysis';
+import { analyzeTcePdfFromBlobUrl, analyzeTcePdfServer } from './geminiAnalysis.js';
 
 type LegacyAnalyzeRequestBody = {
   pdfBase64: string;

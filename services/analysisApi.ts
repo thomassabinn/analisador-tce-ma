@@ -1,14 +1,24 @@
 import { upload } from '@vercel/blob/client';
 
 export const uploadPdfForAnalysis = async (file: File): Promise<string> => {
-  const blob = await upload(file.name, file, {
-    access: 'private',
-    contentType: file.type,
-    handleUploadUrl: '/api/upload',
-    multipart: true,
-  });
+  try {
+    const blob = await upload(file.name, file, {
+      access: 'private',
+      contentType: file.type,
+      handleUploadUrl: '/api/upload',
+      multipart: true,
+    });
 
-  return blob.url;
+    return blob.url;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Failed to retrieve the client token')) {
+      throw new Error('Falha ao iniciar o upload do PDF. Verifique se BLOB_READ_WRITE_TOKEN está configurado na Vercel e se a rota /api/upload está funcionando.');
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error('Falha ao enviar o PDF para o storage.');
+  }
 };
 
 export const analyzeTcePdf = async (blobUrl: string): Promise<string> => {
