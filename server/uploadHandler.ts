@@ -1,8 +1,3 @@
-import {
-  generateClientTokenFromReadWriteToken,
-  type HandleUploadBody,
-} from '@vercel/blob/client';
-
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024;
 
 type UploadResponse = {
@@ -11,13 +6,40 @@ type UploadResponse = {
   status: number;
 };
 
-type GenerateClientTokenResult = Awaited<ReturnType<typeof generateClientTokenFromReadWriteToken>>;
-type GenerateClientTokenImpl = (
-  options: Parameters<typeof generateClientTokenFromReadWriteToken>[0]
-) => Promise<GenerateClientTokenResult>;
+type GenerateClientTokenOptions = {
+  token: string;
+  pathname: string;
+  addRandomSuffix: boolean;
+  allowedContentTypes: string[];
+  maximumSizeInBytes: number;
+  validUntil: number;
+};
 
-type GenerateClientTokenBody = Extract<HandleUploadBody, { type: 'blob.generate-client-token' }>;
-type UploadCompletedBody = Extract<HandleUploadBody, { type: 'blob.upload-completed' }>;
+type GenerateClientTokenImpl = (options: GenerateClientTokenOptions) => Promise<string>;
+
+type GenerateClientTokenBody = {
+  type: 'blob.generate-client-token';
+  payload: {
+    pathname: string;
+    clientPayload: string | null;
+    multipart: boolean;
+  };
+};
+
+type UploadCompletedBody = {
+  type: 'blob.upload-completed';
+  payload: {
+    blob: {
+      pathname: string;
+      contentType: string;
+      contentDisposition: string;
+      url: string;
+      downloadUrl: string;
+      etag: string;
+    };
+    tokenPayload?: string | null;
+  };
+};
 
 const getBlobToken = () => {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -50,9 +72,14 @@ const isUploadCompletedBody = (body: unknown): body is UploadCompletedBody => {
   return candidate.type === 'blob.upload-completed';
 };
 
+const getDefaultGenerateClientTokenImpl = async (): Promise<GenerateClientTokenImpl> => {
+  const blobClientModule = await import('@vercel/blob/client');
+  return blobClientModule.generateClientTokenFromReadWriteToken as GenerateClientTokenImpl;
+};
+
 export const handleUploadRequest = async ({
   body,
-  generateClientTokenImpl = generateClientTokenFromReadWriteToken,
+  generateClientTokenImpl,
 }: {
   body: unknown;
   generateClientTokenImpl?: GenerateClientTokenImpl;
@@ -74,7 +101,8 @@ export const handleUploadRequest = async ({
       };
     }
 
-    const clientToken = await generateClientTokenImpl({
+    const generateToken = generateClientTokenImpl ?? await getDefaultGenerateClientTokenImpl();
+    const clientToken = await generateToken({
       token: getBlobToken(),
       pathname: body.payload.pathname,
       addRandomSuffix: true,
