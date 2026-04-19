@@ -1,5 +1,27 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
+const ANALYSIS_MODELS = ['gemini-2.5-pro', 'gemini-2.5-flash'] as const;
+
+type GenerateContentArgs = {
+  model: string;
+  contents: {
+    parts: Array<
+      | { text: string }
+      | { inlineData: { data: string; mimeType: string } }
+    >;
+  };
+  config: {
+    responseMimeType: 'application/json';
+    responseSchema: ReturnType<typeof getTceAnalysisSchema>;
+  };
+};
+
+type GenerateContentResult = {
+  text: string | undefined;
+};
+
+type GenerateContentFn = (args: GenerateContentArgs) => Promise<GenerateContentResult>;
+
 const getTceAnalysisSchema = () => ({
   type: Type.OBJECT,
   properties: {
@@ -105,37 +127,85 @@ const getApiKey = () => {
   return apiKey;
 };
 
+const buildGenerateContentRequest = (model: string, pdfBase64: string, mimeType: string): GenerateContentArgs => ({
+  model,
+  contents: {
+    parts: [
+      { text: getPrompt() },
+      { inlineData: { data: pdfBase64, mimeType } },
+    ],
+  },
+  config: {
+    responseMimeType: 'application/json',
+    responseSchema: getTceAnalysisSchema(),
+  },
+});
+
+const isQuotaError = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toUpperCase();
+  return message.includes('429') || message.includes('RESOURCE_EXHAUSTED') || message.includes('QUOTA');
+};
+
+const isSafetyError = (error: unknown) => {
+  return error instanceof Error && error.message.includes('SAFETY');
+};
+
+const getReadableGeminiError = (error: unknown) => {
+  if (isSafetyError(error)) {
+    return 'A análise foi bloqueada por políticas de segurança. O conteúdo do PDF pode ter acionado os filtros.';
+  }
+
+  if (isQuotaError(error)) {
+    return 'A cota da API Gemini foi excedida para os modelos disponíveis no momento. Tente novamente em alguns instantes ou use uma chave com mais limite.';
+  }
+
+  return 'Falha na comunicação com a API Gemini. A resposta pode ser inválida ou o modelo falhou ao processar o PDF.';
+};
+
+export const runGeminiAnalysis = async ({
+  generateContent,
+  pdfBase64,
+  mimeType,
+}: {
+  generateContent: GenerateContentFn;
+  pdfBase64: string;
+  mimeType: string;
+}): Promise<string> => {
+  let lastError: unknown;
+
+  for (const [index, model] of ANALYSIS_MODELS.entries()) {
+    try {
+      const response = await generateContent(buildGenerateContentRequest(model, pdfBase64, mimeType));
+      if (!response.text) {
+        throw new Error('A resposta da API está vazia.');
+      }
+      return response.text;
+    } catch (error) {
+      lastError = error;
+      console.error(`Erro ao chamar a API Gemini com ${model}:`, error);
+
+      const hasFallback = index < ANALYSIS_MODELS.length - 1;
+      if (hasFallback && isQuotaError(error)) {
+        continue;
+      }
+
+      throw new Error(getReadableGeminiError(error));
+    }
+  }
+
+  throw new Error(getReadableGeminiError(lastError));
+};
+
 export const analyzeTcePdfServer = async (pdfBase64: string, mimeType: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-pro',
-      contents: {
-        parts: [
-          { text: getPrompt() },
-          { inlineData: { data: pdfBase64, mimeType } },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: getTceAnalysisSchema(),
-      },
-    });
-
-    const resultText = response.text;
-    if (!resultText) {
-      throw new Error('A resposta da API está vazia.');
-    }
-
-    return resultText;
-  } catch (error) {
-    console.error('Erro ao chamar a API Gemini:', error);
-
-    if (error instanceof Error && error.message.includes('SAFETY')) {
-      throw new Error('A análise foi bloqueada por políticas de segurança. O conteúdo do PDF pode ter acionado os filtros.');
-    }
-
-    throw new Error('Falha na comunicação com a API Gemini. A resposta pode ser inválida ou o modelo falhou ao processar o PDF.');
-  }
+  return runGeminiAnalysis({
+    pdfBase64,
+    mimeType,
+    generateContent: (args) => ai.models.generateContent(args),
+  });
 };
