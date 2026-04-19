@@ -1,8 +1,12 @@
-import { analyzeTcePdfServer } from './geminiAnalysis';
+import { analyzeTcePdfFromBlobUrl, analyzeTcePdfServer } from './geminiAnalysis';
 
-type AnalyzeRequestBody = {
+type LegacyAnalyzeRequestBody = {
   pdfBase64: string;
   mimeType: string;
+};
+
+type BlobAnalyzeRequestBody = {
+  blobUrl: string;
 };
 
 type AnalyzeResponse = {
@@ -11,17 +15,26 @@ type AnalyzeResponse = {
   status: number;
 };
 
-const isAnalyzeRequestBody = (value: unknown): value is AnalyzeRequestBody => {
+const isLegacyAnalyzeRequestBody = (value: unknown): value is LegacyAnalyzeRequestBody => {
   if (!value || typeof value !== 'object') {
     return false;
   }
 
-  const candidate = value as Partial<AnalyzeRequestBody>;
+  const candidate = value as Partial<LegacyAnalyzeRequestBody>;
   return typeof candidate.pdfBase64 === 'string' && typeof candidate.mimeType === 'string';
 };
 
+const isBlobAnalyzeRequestBody = (value: unknown): value is BlobAnalyzeRequestBody => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<BlobAnalyzeRequestBody>;
+  return typeof candidate.blobUrl === 'string';
+};
+
 export const handleAnalyzeRequest = async (body: unknown): Promise<AnalyzeResponse> => {
-  if (!isAnalyzeRequestBody(body)) {
+  if (!isLegacyAnalyzeRequestBody(body) && !isBlobAnalyzeRequestBody(body)) {
     return {
       status: 400,
       contentType: 'application/json',
@@ -30,7 +43,10 @@ export const handleAnalyzeRequest = async (body: unknown): Promise<AnalyzeRespon
   }
 
   try {
-    const result = await analyzeTcePdfServer(body.pdfBase64, body.mimeType);
+    const result = isBlobAnalyzeRequestBody(body)
+      ? await analyzeTcePdfFromBlobUrl(body.blobUrl)
+      : await analyzeTcePdfServer(body.pdfBase64, body.mimeType);
+
     return {
       status: 200,
       contentType: 'application/json',

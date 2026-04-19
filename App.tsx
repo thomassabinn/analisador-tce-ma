@@ -16,7 +16,7 @@ import FeedbackButton from './components/FeedbackButton';
 import FeedbackModal from './components/FeedbackModal';
 import { XIcon } from './components/icons';
 
-import { analyzeTcePdf } from './services/analysisApi';
+import { analyzeTcePdf, uploadPdfForAnalysis } from './services/analysisApi';
 import { fileToBase64, base64ToFile, generateDocxBlob } from './utils/fileUtils';
 import { getAnalysisSessionPlan } from './utils/analysisSession';
 import { TOPIC_CLASSIFICATIONS } from './topicClassifications';
@@ -203,7 +203,7 @@ const App: React.FC = () => {
 
   const handleSaveSession = useCallback(async (name: string, options: { silent?: boolean } = {}) => {
     const newSessionId = await saveSessionToDb({
-        id: sessionPlan.sessionIdToSave,
+      id: currentSessionId,
       name,
       fileName: selectedFile?.name ?? null,
       appState: { analysisResults, validationText, entityLogo, originalScores }
@@ -427,9 +427,10 @@ const App: React.FC = () => {
     localStorage.setItem('lastActiveSessionId', tempSessionId);
 
     try {
-      const base64 = await fileToBase64(file);
+      setLoadingMessage(`Enviando PDF: ${file.name} (${queuePosition} de ${totalQueueCount.current})...`);
+      const blobUrl = await uploadPdfForAnalysis(file);
       setLoadingMessage(`Processando inteligência: ${file.name} (${queuePosition} de ${totalQueueCount.current})...`);
-      const resultJson = await analyzeTcePdf(base64, file.type);
+      const resultJson = await analyzeTcePdf(blobUrl);
 
       const parsedResult: TceApiResponse = JSON.parse(resultJson);
 

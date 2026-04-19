@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { del, get } from '@vercel/blob';
 
 const ANALYSIS_MODELS = ['gemini-2.5-pro', 'gemini-2.5-flash'] as const;
 
@@ -208,4 +209,36 @@ export const analyzeTcePdfServer = async (pdfBase64: string, mimeType: string): 
     mimeType,
     generateContent: (args) => ai.models.generateContent(args),
   });
+};
+
+const readStreamToBase64 = async (stream: ReadableStream<Uint8Array>) => {
+  const response = new Response(stream);
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer).toString('base64');
+};
+
+const getPdfFromBlobUrl = async (blobUrl: string) => {
+  const result = await get(blobUrl, { access: 'private' });
+
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    throw new Error('Falha ao recuperar o PDF enviado para o storage.');
+  }
+
+  return {
+    mimeType: result.blob.contentType || 'application/pdf',
+    pdfBase64: await readStreamToBase64(result.stream),
+  };
+};
+
+export const analyzeTcePdfFromBlobUrl = async (blobUrl: string): Promise<string> => {
+  try {
+    const { pdfBase64, mimeType } = await getPdfFromBlobUrl(blobUrl);
+    return await analyzeTcePdfServer(pdfBase64, mimeType);
+  } finally {
+    try {
+      await del(blobUrl);
+    } catch (error) {
+      console.warn('Falha ao remover blob temporário após a análise:', error);
+    }
+  }
 };
