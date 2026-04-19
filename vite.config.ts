@@ -1,7 +1,6 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import type { HandleUploadBody } from '@vercel/blob/client';
 
 import { processDevAnalyzeRequest } from './server/devAnalyzeRoute';
 import { handleUploadRequest } from './server/uploadHandler';
@@ -47,10 +46,9 @@ const analyzeApiPlugin = () => ({
       req.on('end', async () => {
         try {
           const rawBody = Buffer.concat(chunks).toString('utf8');
-          const parsedBody = JSON.parse(rawBody) as HandleUploadBody;
+          const parsedBody = JSON.parse(rawBody);
           const response = await handleUploadRequest({
             body: parsedBody,
-            request: req,
           });
 
           res.statusCode = response.status;

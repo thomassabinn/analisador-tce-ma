@@ -1,5 +1,3 @@
-import type { HandleUploadBody } from '@vercel/blob/client';
-
 import { handleUploadRequest } from '../server/uploadHandler';
 
 export default async function handler(req: any, res: any) {
@@ -9,8 +7,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const response = await handleUploadRequest({
-    body: req.body as HandleUploadBody,
-    request: req,
+    body: req.body,
   });
 
   res.status(response.status);
