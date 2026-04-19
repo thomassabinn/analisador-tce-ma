@@ -2,7 +2,7 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-import { handleAnalyzeRequest } from './server/analyzeHandler';
+import { processDevAnalyzeRequest } from './server/devAnalyzeRoute';
 
 const analyzeApiPlugin = () => ({
   name: 'local-analyze-api',
@@ -19,19 +19,15 @@ const analyzeApiPlugin = () => ({
       });
 
       req.on('end', async () => {
-        try {
-          const rawBody = Buffer.concat(chunks).toString('utf8');
-          const parsedBody = rawBody ? JSON.parse(rawBody) : null;
-          const response = await handleAnalyzeRequest(parsedBody);
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        const response = await processDevAnalyzeRequest({
+          rawBody,
+          loadHandler: () => import('./server/analyzeHandler'),
+        });
 
-          res.statusCode = response.status;
-          res.setHeader('Content-Type', response.contentType);
-          res.end(response.body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Corpo da requisição inválido.' }));
-        }
+        res.statusCode = response.status;
+        res.setHeader('Content-Type', response.contentType);
+        res.end(response.body);
       });
     });
   },
